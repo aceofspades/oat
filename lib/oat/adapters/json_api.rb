@@ -69,13 +69,30 @@ module Oat
         @meta[key] = value
       end
 
-      def entity(name, obj, serializer_class = nil, context_options = {}, &block)
-        ent = serializer_from_block_or_class(obj, serializer_class, context_options, &block)
+      def entity(name, obj, serializer_class = nil, options = {}, &block)
+        polymorphic = options.delete(:polymorphic)
+        entity_name = options.delete(:entity_name)
+        ent = serializer_from_block_or_class(obj, serializer_class, options, &block)
         if ent && !serializer.serialized?(name, ent.item.id)
           ent_hash = ent.to_hash
-          _name = entity_name(name)
+          if entity_name
+            if entity_name.is_a?(Proc)
+              _name = entity_name.call(obj)
+            else
+              _name = entity_name
+            end
+          else
+            _name = entity_name(name)
+          end
           entity_hash[_name.to_s.pluralize.to_sym] ||= []
-          data[:links][_name] = ent_hash[:id]
+          if polymorphic
+            data[:links][entity_name(name)] = {
+              id: ent_hash[:id],
+              type: _name
+            }
+          else
+            data[:links][_name] = ent_hash[:id]
+          end
           entity_hash[_name.to_s.pluralize.to_sym] << ent_hash
         end
       end
