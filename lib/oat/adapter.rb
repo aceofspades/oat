@@ -31,7 +31,14 @@ module Oat
         serializer.instance_exec(obj, s, &block)
         s
       else
-        serializer_class.new(obj, serializer.context.merge(context_options), serializer.adapter_class, serializer.top)
+        if serializer_class.nil? && @serializer.class.respond_to?(:serializer_class)
+          _serializer_class = @serializer.class.serializer_class(obj)
+        elsif serializer_class.is_a?(Proc)
+          _serializer_class = serializer_class.call(obj)
+        else
+          _serializer_class = serializer_class
+        end
+        _serializer_class.new(obj, serializer.context.merge(context_options), serializer.adapter_class, serializer.top)
       end
     end
   end
