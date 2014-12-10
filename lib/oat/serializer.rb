@@ -44,7 +44,7 @@ module Oat
       if self.class.type
         type(self.class.type)
       end
-      @context[:_serialized_entities] ||= {}
+      @context[:_serialized_entities] ||= Hash.new { |h, k| h[k] = Hash.new }
     end
 
     def top
@@ -71,9 +71,6 @@ module Oat
 
     def to_hash
       @to_hash ||= (
-        if self.class.type
-          Array(item).each { |i| set_serialized(self.class.type, i.id) }
-        end
         schema = self.class.schema
         instance_eval(&schema) if schema
         adapter.to_hash
@@ -89,15 +86,13 @@ module Oat
       property name, value
     end
 
-    def set_serialized(type, id)
-      @context[:_serialized_entities][type] ||= {}
-      @context[:_serialized_entities][type][id] = true
-    end
-
-    def serialized?(type, id)
-      h = @context[:_serialized_entities]
-      h = h[type] if h
-      h[id] if h
+    def should_serialize(type, id)
+      if @context[:_serialized_entities][type][id]
+        false
+      else
+        @context[:_serialized_entities][type][id] = true
+        true
+      end
     end
 
   end
