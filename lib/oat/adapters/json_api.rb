@@ -73,8 +73,7 @@ module Oat
         polymorphic = options.delete(:polymorphic)
         entity_name = options.delete(:entity_name)
         ent = serializer_from_block_or_class(obj, serializer_class, options, &block)
-        if ent && !serializer.serialized?(name, ent.item.id)
-          ent_hash = ent.to_hash
+        if ent
           if entity_name
             if entity_name.is_a?(Proc)
               _name = entity_name.call(obj)
@@ -87,13 +86,16 @@ module Oat
           entity_hash[_name.to_s.pluralize.to_sym] ||= []
           if polymorphic
             data[:links][entity_name(name)] = {
-              id: ent_hash[:id],
+              id: ent.item.id,
               type: _name
             }
           else
-            data[:links][_name] = ent_hash[:id]
+            data[:links][_name] = ent.item.id
           end
-          entity_hash[_name.to_s.pluralize.to_sym] << ent_hash
+          if serializer.should_serialize(name, ent.item.id)
+            ent_hash = ent.to_hash
+            entity_hash[_name.to_s.pluralize.to_sym] << ent_hash
+          end
         end
       end
 
@@ -107,10 +109,12 @@ module Oat
         collection.each do |obj|
           entity_hash[link_name] ||= []
           ent = serializer_from_block_or_class(obj, serializer_class, context_options, &block)
-          if ent && !serializer.serialized?(link_name, ent.item.id)
-            ent_hash = ent.to_hash
-            data[:links][link_name] << ent_hash[:id]
-            entity_hash[link_name] << ent_hash
+          if ent
+            data[:links][link_name] << ent.item.id
+            if serializer.should_serialize(link_name, ent.item.id)
+              ent_hash = ent.to_hash
+              entity_hash[link_name] << ent_hash
+            end
           end
         end
       end
@@ -129,11 +133,8 @@ module Oat
 
         collection.each do |obj|
           ent = serializer_from_block_or_class(obj, serializer_class, context_options, &block)
-          if ent
-            unless serializer.serialized?(root_name, ent.item.id)
-              # serializer.set_serialized(root_name, ent.item.id)
-              data[:resource_collection] << ent.to_hash
-            end
+          if ent && serializer.should_serialize(root_name, ent.item.id)
+            data[:resource_collection] << ent.to_hash
           end
         end
       end
