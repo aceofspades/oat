@@ -32,12 +32,13 @@ module Oat
       logger ? logger.warning(msg) : Kernel.warn(msg)
     end
 
-    attr_reader :item, :context, :adapter_class, :adapter
+    attr_reader :item, :context, :adapter_class, :adapter, :options
 
-    def initialize(item, context = nil, _adapter_class = nil, parent_serializer = nil)
+    def initialize(item, context = nil, _adapter_class = nil, parent_serializer = nil, options = {})
       @item = item
       @context = context || {}
       @parent_serializer = parent_serializer
+      @options = options
       @adapter_class = _adapter_class || self.class.adapter
       @adapter = @adapter_class.new(self)
       if self.class.type
