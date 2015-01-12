@@ -9,8 +9,18 @@ module Oat
     end
 
     def self.schema(&block)
-      @schema = block if block_given?
-      @schema || Proc.new{}
+      _superclass = superclass
+      if block_given?
+        if _superclass.ancestors.include?(Oat::Serializer) && _superclass.schema
+          @schema = Proc.new do
+            instance_eval(&_superclass.schema)
+            instance_eval(&block)
+          end
+        else
+          @schema = block
+        end
+      end
+      @schema
     end
 
     def self.adapter(adapter_class = nil)
@@ -63,7 +73,8 @@ module Oat
         if self.class.type
           Array(item).each { |i| set_serialized(self.class.type, i.id) }
         end
-        instance_eval(&self.class.schema)
+        schema = self.class.schema
+        instance_eval(&schema) if schema
         adapter.to_hash
       )
     end
