@@ -9,18 +9,21 @@ module Oat
     end
 
     def self.schema(&block)
-      _superclass = superclass
       if block_given?
+        _superclass = superclass
+        blocks = [block]
         if _superclass.ancestors.include?(Oat::Serializer) && _superclass.schema
-          @schema = Proc.new do
-            instance_eval(&_superclass.schema)
-            instance_eval(&block)
-          end
-        else
-          @schema = block
+          blocks << _superclass.schema
         end
+        if @schema
+          blocks << @schema
+        end
+        @schema = Proc.new do
+          blocks.each { |b| instance_eval(&b) }
+        end
+      else
+        @schema
       end
-      @schema
     end
 
     def self.adapter(adapter_class = nil)
