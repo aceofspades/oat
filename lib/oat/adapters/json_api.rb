@@ -14,7 +14,7 @@ module Oat
 
       def initialize(*args)
         super
-        @entities = {}
+        @links = {}
         @link_templates = {}
         @meta = {}
       end
@@ -76,7 +76,7 @@ module Oat
         if ent
           if entity_name
             if entity_name.is_a?(Proc)
-              _name = entity_name.call(obj)
+              _name = entity_name.call(obj).try(:to_sym)
             else
               _name = entity_name
             end
@@ -84,15 +84,13 @@ module Oat
             _name = entity_name(name)
           end
           entity_hash[_name.to_s.pluralize.to_sym] ||= []
-          if polymorphic
-            data[:links][entity_name(name)] = {
+          data[:relationships][entity_name(name)] = {
+            data: {
               id: ent.item.id,
               type: _name
             }
-          else
-            data[:links][_name] = ent.item.id
-          end
-          if serializer.should_serialize(name, ent.item.id)
+          }
+          if serializer.should_serialize(_name, ent.item.id)
             ent_hash = ent.to_hash
             entity_hash[_name.to_s.pluralize.to_sym] << ent_hash
           end
@@ -102,16 +100,16 @@ module Oat
       def entities(name, collection, serializer_class = nil, context_options = nil, &block)
         return if collection.nil? || collection.empty?
         context_options ||= {}
-        _name = entity_name(name)
-        link_name = _name.to_s.pluralize.to_sym
-        data[:links][link_name] = []
+        link_name = entity_name(name)
+        _name = link_name.to_s.singularize.to_sym
+        data[:relationships][link_name] = {data: []}
 
         collection.each do |obj|
           entity_hash[link_name] ||= []
           ent = serializer_from_block_or_class(obj, serializer_class, context_options, &block)
           if ent
-            data[:links][link_name] << ent.item.id
-            if serializer.should_serialize(link_name, ent.item.id)
+            data[:relationships][link_name][:data] << {type: link_name, id: ent.item.id}
+            if serializer.should_serialize(_name, ent.item.id)
               ent_hash = ent.to_hash
               entity_hash[link_name] << ent_hash
             end
@@ -146,14 +144,16 @@ module Oat
         else
           h = {}
           if @treat_as_resource_collection
-            h[root_name] = data[:resource_collection]
+            h[:data] = data[:resource_collection].map { |d| to_json_api_data(root_name, d) }
           else
-            h[root_name] = [data]
+            h[:data] = to_json_api_data(root_name, data)
           end
-          h[:linked] = @entities if @entities.keys.any?
-          h[:links] = @link_templates if @link_templates.keys.any?
+          if @links.values.any?
+            h[:included] = @links.map { |type, entities| entities.map { |e| to_json_api_data(type, e) } }.flatten
+          end
+          h[:data][:links] = @link_templates if @link_templates.keys.any?
           h[:meta] = @meta if @meta.keys.any?
-          return h
+          h
         end
       end
 
@@ -163,7 +163,7 @@ module Oat
 
       def entity_hash
         if serializer.top == serializer
-          @entities
+          @links
         else
           serializer.top.adapter.entity_hash
         end
@@ -172,6 +172,16 @@ module Oat
       def entity_without_root(obj, serializer_class = nil, &block)
         ent = serializer_from_block_or_class(obj, serializer_class, &block)
         ent.to_hash.values.first.first if ent
+      end
+
+      def to_json_api_data(type, data)
+        h = {
+          type: type,
+          id: data[:id],
+          attributes: Hash[data.except(:id, :relationships).sort]
+        }
+        h[:relationships] = data[:relationships] if data[:relationships].present?
+        h
       end
 
     end

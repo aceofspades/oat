@@ -90,7 +90,7 @@ module Oat
     end
 
     def should_serialize(type, id)
-      if @context[:_serialized_entities][type][id]
+      if @context[:_serialized_entities][type].has_key?(id)
         false
       else
         @context[:_serialized_entities][type][id] = true
